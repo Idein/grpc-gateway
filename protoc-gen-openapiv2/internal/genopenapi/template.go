@@ -2248,9 +2248,9 @@ func updateswaggerObjectFromJSONSchema(s *openapiSchemaObject, j *openapi_option
 func updateSwaggerObjectFromFieldBehavior(s *openapiSchemaObject, j []annotations.FieldBehavior, field *descriptor.Field) {
 	// Per the JSON Reference syntax: Any members other than "$ref" in a JSON Reference object SHALL be ignored.
 	// https://tools.ietf.org/html/draft-pbryan-zyp-json-ref-03#section-3
-	if s.Ref != "" {
-		return
-	}
+	// if s.Ref != "" {
+	// 	return
+	// }
 
 	for _, fb := range j {
 		switch fb {
@@ -2260,6 +2260,7 @@ func updateSwaggerObjectFromFieldBehavior(s *openapiSchemaObject, j []annotation
 			s.ReadOnly = true
 		case annotations.FieldBehavior_FIELD_BEHAVIOR_UNSPECIFIED:
 		case annotations.FieldBehavior_OPTIONAL:
+			s.XNullable = true
 		case annotations.FieldBehavior_INPUT_ONLY:
 			// OpenAPI v3 supports a writeOnly property, but this is not supported in Open API v2
 		case annotations.FieldBehavior_IMMUTABLE:
