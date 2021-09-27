@@ -58,11 +58,11 @@ var wktSchemas = map[string]schemaCore{
 		Format: "int64",
 	},
 	".google.protobuf.Int64Value": {
-		Type:   "string",
+		Type:   "integer",
 		Format: "int64",
 	},
 	".google.protobuf.UInt64Value": {
-		Type:   "string",
+		Type:   "integer",
 		Format: "uint64",
 	},
 	".google.protobuf.FloatValue": {
@@ -627,14 +627,14 @@ func primitiveSchema(t descriptorpb.FieldDescriptorProto_Type) (ftype, format st
 	case descriptorpb.FieldDescriptorProto_TYPE_FLOAT:
 		return "number", "float", true
 	case descriptorpb.FieldDescriptorProto_TYPE_INT64:
-		return "string", "int64", true
+		return "integer", "int64", true
 	case descriptorpb.FieldDescriptorProto_TYPE_UINT64:
 		// 64bit integer types are marshaled as string in the default JSONPb marshaler.
 		// TODO(yugui) Add an option to declare 64bit integers as int64.
 		//
 		// NOTE: uint64 is not a predefined format of integer type in OpenAPI spec.
 		// So we cannot expect that uint64 is commonly supported by OpenAPI processor.
-		return "string", "uint64", true
+		return "integer", "uint64", true
 	case descriptorpb.FieldDescriptorProto_TYPE_INT32:
 		return "integer", "int32", true
 	case descriptorpb.FieldDescriptorProto_TYPE_FIXED64:
@@ -2230,9 +2230,9 @@ func updateswaggerObjectFromJSONSchema(s *openapiSchemaObject, j *openapi_option
 func updateSwaggerObjectFromFieldBehavior(s *openapiSchemaObject, j []annotations.FieldBehavior, field *descriptor.Field) {
 	// Per the JSON Reference syntax: Any members other than "$ref" in a JSON Reference object SHALL be ignored.
 	// https://tools.ietf.org/html/draft-pbryan-zyp-json-ref-03#section-3
-	// if s.Ref != "" {
-	// 	return
-	// }
+	//if s.Ref != "" {
+	//	return
+	//}
 
 	for _, fb := range j {
 		switch fb {
