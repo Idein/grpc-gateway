@@ -458,7 +458,35 @@ func renderMessageAsDefinition(msg *descriptor.Message, reg *descriptor.Registry
 		}
 		*schema.Properties = append(*schema.Properties, kv)
 	}
+
+	if msg.FQMN() == ".google.protobuf.Any" {
+		transformAnyForJSON(&schema, reg.GetUseJSONNamesForFields())
+	}
+
 	return schema
+}
+
+// transformAnyForJSON should be called when the schema object represents a google.protobuf.Any, and will replace the
+// Properties slice with a single value for '@type'. We mutate the incorrectly named field so that we inherit the same
+// documentation as specified on the original field in the protobuf descriptors.
+func transformAnyForJSON(schema *openapiSchemaObject, useJSONNames bool) {
+	var typeFieldName string
+	if useJSONNames {
+		typeFieldName = "typeUrl"
+	} else {
+		typeFieldName = "type_url"
+	}
+
+	for _, property := range *schema.Properties {
+		if property.Key == typeFieldName {
+			schema.AdditionalProperties = &openapiSchemaObject{}
+			schema.Properties = &openapiSchemaObjectProperties{keyVal{
+				Key:   "@type",
+				Value: property.Value,
+			}}
+			break
+		}
+	}
 }
 
 func renderMessagesAsDefinition(messages messageMap, d openapiDefinitionsObject, reg *descriptor.Registry, customRefs refMap, excludeFields []*descriptor.Field) {
@@ -685,7 +713,7 @@ func fullyQualifiedNameToOpenAPIName(fqn string, reg *descriptor.Registry) (stri
 		ret, ok := mapping[fqn]
 		return ret, ok
 	}
-	mapping := resolveFullyQualifiedNameToOpenAPINames(append(reg.GetAllFQMNs(), reg.GetAllFQENs()...), reg.GetUseFQNForOpenAPIName())
+	mapping := resolveFullyQualifiedNameToOpenAPINames(append(reg.GetAllFQMNs(), reg.GetAllFQENs()...), reg.GetOpenAPINamingStrategy())
 	registriesSeen[reg] = mapping
 	ret, ok := mapping[fqn]
 	return ret, ok
@@ -710,59 +738,13 @@ func lookupMsgAndOpenAPIName(location, name string, reg *descriptor.Registry) (*
 var registriesSeen = map[*descriptor.Registry]map[string]string{}
 var registriesSeenMutex sync.Mutex
 
-// Take the names of every proto and "uniq-ify" them. The idea is to produce a
-// set of names that meet a couple of conditions. They must be stable, they
-// must be unique, and they must be shorter than the FQN.
-//
-// This likely could be made better. This will always generate the same names
-// but may not always produce optimal names. This is a reasonably close
-// approximation of what they should look like in most cases.
-func resolveFullyQualifiedNameToOpenAPINames(messages []string, useFQNForOpenAPIName bool) map[string]string {
-	packagesByDepth := make(map[int][][]string)
-	uniqueNames := make(map[string]string)
-
-	hierarchy := func(pkg string) []string {
-		return strings.Split(pkg, ".")
+// Take the names of every proto message and generate a unique reference for each, according to the given strategy.
+func resolveFullyQualifiedNameToOpenAPINames(messages []string, namingStrategy string) map[string]string {
+	strategyFn := LookupNamingStrategy(namingStrategy)
+	if strategyFn == nil {
+		return nil
 	}
-
-	for _, p := range messages {
-		h := hierarchy(p)
-		for depth := range h {
-			if _, ok := packagesByDepth[depth]; !ok {
-				packagesByDepth[depth] = make([][]string, 0)
-			}
-			packagesByDepth[depth] = append(packagesByDepth[depth], h[len(h)-depth:])
-		}
-	}
-
-	count := func(list [][]string, item []string) int {
-		i := 0
-		for _, element := range list {
-			if reflect.DeepEqual(element, item) {
-				i++
-			}
-		}
-		return i
-	}
-
-	for _, p := range messages {
-		if useFQNForOpenAPIName {
-			// strip leading dot from proto fqn
-			uniqueNames[p] = p[1:]
-		} else {
-			h := hierarchy(p)
-			for depth := 0; depth < len(h); depth++ {
-				if count(packagesByDepth[depth], h[len(h)-depth:]) == 1 {
-					uniqueNames[p] = strings.Join(h[len(h)-depth-1:], "")
-					break
-				}
-				if depth == len(h)-1 {
-					uniqueNames[p] = strings.Join(h, "")
-				}
-			}
-		}
-	}
-	return uniqueNames
+	return strategyFn(messages)
 }
 
 var canRegexp = regexp.MustCompile("{([a-zA-Z][a-zA-Z0-9_.]*).*}")
